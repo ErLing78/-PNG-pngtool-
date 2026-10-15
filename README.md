@@ -87,14 +87,14 @@ Render any image as ASCII art — for checking output over SSH, in CI logs, or f
 Copy the `src/stdpng/` directory next to your script and import it. That's the whole procedure, and it works completely offline.
 
 ```bash
-git clone https://github.com/ErLing78/stdpng.git
+git clone https://github.com/ErLing78/-PNG-pngtool-.git
 cp -r stdpng/src/stdpng your-project/
 ```
 
 ### Option 2 — pip
 
 ```bash
-git clone https://github.com/ErLing78/stdpng.git
+git clone https://github.com/ErLing78/-PNG-pngtool-.git
 cd stdpng
 pip install .
 ```
