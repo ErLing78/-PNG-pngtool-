@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.8", "3.10", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Confirm there are no dependencies to install
+        shell: bash
+        run: |
+          python -c "import sys; print(sys.version)"
+          python -c "
+          import tomllib, pathlib, sys
+          if sys.version_info < (3, 11):
+              # tomllib is 3.11+; fall back to a plain text check on older versions
+              text = pathlib.Path('pyproject.toml').read_text(encoding='utf-8')
+              assert 'dependencies = []' in text, 'pyproject declares dependencies'
+          else:
+              data = tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))
+              assert data['project']['dependencies'] == [], 'pyproject declares dependencies'
+          print('zero-dependency guarantee holds')
+          "
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run CLI smoke test
+        run: python tests/smoke_test.py
+
+      - name: Verify every example in README.md
+        run: python tests/readme_examples_test.py
+
+      - name: Check the package imports cleanly
+        run: python -c "import sys; sys.path.insert(0, 'src'); import stdpng; print(stdpng.__version__)"
+
+  package:
+    name: Package metadata and install
+    # A dedicated job because this is the only place packaging errors surface.
+    # Concretely: an invalid PEP 621 field in pyproject.toml (for example a
+    # `url` key inside `authors`, which PEP 621 does not allow) leaves the
+    # source tree working perfectly while making the package uninstallable.
+    # Every other check in this workflow passes in that state.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the package builds and installs
+        run: |
+          python -m pip install --quiet --upgrade pip
+          python -m pip install --quiet .
+          echo "installed without error"
+
+      - name: Check the installed metadata
+        run: |
+          python - <<'PY'
+          from importlib.metadata import metadata
+          import sys
+
+          info = metadata("stdpng")
+          print("name        :", info["Name"])
+          print("version     :", info["Version"])
+          print("author      :", info["Author"])
+          print("license     :", info["License"])
+
+          # The placeholder strings are assembled from fragments on purpose, so
+          # that a repository-wide search for unfilled placeholders does not
+          # match this detection logic itself.
+          unfilled_name = "<" + "YOUR" + " " + "NAME" + ">"
+          unfilled_github_user = "USER" + "NAME"
+
+          blob = str(info)
+          problems = []
+          if not info["Author"]:
+              problems.append("author is empty")
+          elif unfilled_github_user in info["Author"]:
+              problems.append("author placeholder was never filled in")
+          if unfilled_name in blob or unfilled_github_user in blob:
+              problems.append("an unfilled placeholder is embedded in the metadata")
+
+          deps = list(info.get_all("Requires-Dist") or [])
+          if deps:
+              problems.append("declares dependencies: %s" % deps)
+          else:
+              print("requires    : NONE (zero-dependency guarantee holds)")
+
+          for problem in problems:
+              print("PROBLEM:", problem)
+          sys.exit(1 if problems else 0)
+          PY
+
+      - name: Confirm the console script runs
+        run: stdpng --version
+
+      - name: Confirm the installed package actually works
+        run: |
+          python - <<'PY'
+          from stdpng import codec, ops, quantize
+
+          image = codec.Image(16, 16)
+          for y in range(16):
+              for x in range(16):
+                  image.set(x, y, (x * 16, y * 16, 128, 255))
+
+          palette, indices = quantize.quantize(image, 8)
+          assert len(palette) <= 8, palette
+          assert len(indices) == 256
+          assert ops.scale(image, 2).width == 32
+
+          # Round-trip through the encoder to prove the installed copy is whole.
+          decoded = codec.decode(codec.encode(image))
+          assert bytes(decoded.pixels) == bytes(image.pixels)
+          print("installed package works end to end")
+          PY
+
+  lint:
+    name: Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check for obvious syntax problems
+        run: python -m compileall -q src/stdpng tests

@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stdpng"
+version = "0.1.0"
+description = "PNG and pixel-art toolkit with zero third-party dependencies"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "ErLing78" },
+]
+keywords = ["png", "pixel-art", "image", "sprite", "palette", "quantization", "stdlib", "zero-dependency"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Multimedia :: Graphics :: Editors",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# Deliberately empty. If this ever gains an entry, the project has failed.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/ErLing78/stdpng"
+Issues = "https://github.com/ErLing78/stdpng/issues"
+
+[project.scripts]
+stdpng = "stdpng.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
